@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { socket } from './socket';
 import './index.css';
+import ReactMarkdown from 'react-markdown';
 
 const TimerDisplay = ({ timeObj, isActive }) => {
    if (!timeObj) return null;
@@ -469,7 +470,20 @@ function Room() {
   const [specMessages, setSpecMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState('general');
+  const [rulesMarkdown, setRulesMarkdown] = useState('');
   const chatEndRef = useRef(null);
+
+  useEffect(() => {
+     if (room && room.gameType) {
+        fetch(`/rules/${room.gameType}.md`)
+          .then(res => res.text())
+          .then(text => {
+             if (text.startsWith('<!DOCTYPE html>')) setRulesMarkdown('*Rules file missing for this logic mode.*');
+             else setRulesMarkdown(text);
+          })
+          .catch(e => setRulesMarkdown('*Failed to load rules.*'));
+     }
+  }, [room?.gameType]);
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -491,7 +505,10 @@ function Room() {
     socket.on('room_updated', (updatedRoom) => {
       setRoom(updatedRoom);
       if (updatedRoom.status === 'playing') setGameStarted(true);
-      else setGameStarted(false);
+      else {
+        setGameStarted(false);
+        if (updatedRoom.status === 'waiting') setGameState(null); 
+      }
     });
 
     socket.on('room_disbanded', () => {
@@ -505,7 +522,6 @@ function Room() {
     });
 
     socket.on('game_started', () => {
-      setGameState(null);
       setGameStarted(true);
     });
     socket.on('game_state_update', (state) => setGameState(state));
@@ -666,10 +682,15 @@ function Room() {
           {!isPlayer && (
             <button style={{ ...tabStyle, background: activeTab === 'spectator' ? 'var(--accent-color)' : 'transparent' }} onClick={() => setActiveTab('spectator')}>Spectator Chat</button>
           )}
+          <button style={{ ...tabStyle, background: activeTab === 'rules' ? 'var(--accent-color)' : 'transparent' }} onClick={() => setActiveTab('rules')}>Rules</button>
         </div>
         
         <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {activeTab === 'general' 
+          {activeTab === 'rules' ? (
+             <div style={{ color: 'white', lineHeight: '1.6', fontSize: '0.95rem' }}>
+                <ReactMarkdown>{rulesMarkdown}</ReactMarkdown>
+             </div>
+          ) : activeTab === 'general' 
             ? chatMessages.map((msg, idx) => (
                 <div key={idx} style={{ background: msg.system ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.4)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.95rem', borderLeft: msg.system ? 'none' : '3px solid rgba(212, 175, 55, 0.3)' }}>
                   {msg.system ? (<span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>{msg.message}</span>) : (<><strong style={{ color: msg.isPlayer ? 'var(--accent-color)' : '#b5a48b' }}>{msg.sender}: </strong><span style={{ color: 'white' }}>{msg.message}</span></>)}
