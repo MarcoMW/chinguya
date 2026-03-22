@@ -48,9 +48,14 @@ class Game {
     // Dummy override warning
   }
 
+  // Graceful memory clearing for forced abrupt aborts
+  destroy() {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+  }
+
   // Common End Game logic
   endGame(winnerId, reason) {
-    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.destroy();
     
     this.status = 'ended';
     this.room.status = 'waiting';

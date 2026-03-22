@@ -2,10 +2,14 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const Game = require('./Game');
 
 const app = express();
 app.use(cors());
+
+// Serve static frontend files in production
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 const server = http.createServer(app);
 
@@ -145,43 +149,107 @@ io.on('connection', (socket) => {
     }
   });
 
+  const handleUserLeave = (socketId, room, roomId) => {
+    const isHost = room.host === socketId;
+    const isPlayer = room.players.some(p => p.id === socketId);
+    if (!isPlayer && !room.spectators.some(s => s.id === socketId)) return false;
+
+    const user = room.players.find(p => p.id === socketId) || room.spectators.find(s => s.id === socketId);
+
+    // If host leaves, entire room is destroyed
+    if (isHost) {
+       io.to(roomId).emit('chat_message', { system: true, message: `Host ${user.name} left. Room disbanded.`, timestamp: Date.now() });
+       io.to(roomId).emit('room_disbanded');
+       if (room.gameInstance && room.status === 'playing') room.gameInstance.destroy();
+       delete rooms[roomId];
+       io.emit('rooms_list', getPublicRooms());
+       return true;
+    }
+    
+    // Normal participant leaves
+    room.players = room.players.filter(p => p.id !== socketId);
+    room.spectators = room.spectators.filter(s => s.id !== socketId);
+    io.to(roomId).emit('chat_message', { system: true, message: `${user.name} left the room`, timestamp: Date.now() });
+
+    // Auto-forfeit
+    if (isPlayer && room.status === 'playing' && room.gameInstance) {
+       const opp = room.players[0]; // remaining player
+       room.gameInstance.endGame(opp ? opp.id : 'draw', `${user.name} disconnected and forfeited.`);
+    }
+
+    if (rooms[roomId]) io.to(roomId).emit('room_updated', sanitizeRoom(rooms[roomId]));
+    io.emit('rooms_list', getPublicRooms());
+    return true;
+  };
+
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
-    
     for (const roomId in rooms) {
-      const room = rooms[roomId];
-      let updated = false;
-      let removedUser = null;
-      
-      room.players = room.players.filter(p => {
-        if (p.id === socket.id) { updated = true; removedUser = p; return false; }
-        return true;
-      });
-      room.spectators = room.spectators.filter(s => {
-        if (s.id === socket.id) { updated = true; removedUser = s; return false; }
-        return true;
-      });
-      
-      if (updated) {
-        if (removedUser) io.to(roomId).emit('chat_message', { system: true, message: `${removedUser.name} left the room`, timestamp: Date.now() });
-        
-        // Abandon game if in progress
-        if (room.status === 'playing' && room.gameInstance) {
-           room.gameInstance.endGame('draw', 'A player disconnected. Match forcibly aborted.');
-        }
-
-        if (room.host === socket.id && room.players.length > 0) {
-          room.host = room.players[0].id;
-          io.to(roomId).emit('chat_message', { system: true, message: `${room.players[0].name} is now the host`, timestamp: Date.now() });
-        } else if (room.players.length === 0 && room.spectators.length === 0) {
-          delete rooms[roomId];
-        }
-        
-        if (rooms[roomId]) io.to(roomId).emit('room_updated', sanitizeRoom(rooms[roomId]));
-        io.emit('rooms_list', getPublicRooms());
-      }
+       handleUserLeave(socket.id, rooms[roomId], roomId);
     }
   });
+
+  socket.on('leave_room', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (room) {
+      handleUserLeave(socket.id, room, roomId);
+      socket.leave(roomId);
+      socket.leave(`${roomId}_spectators`);
+    }
+  });
+
+  socket.on('change_game_type', ({ roomId, type }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'waiting' || room.host !== socket.id) return;
+    room.gameType = type;
+    io.to(roomId).emit('chat_message', { system: true, message: `Host changed game to ${type === 'black_hole' ? 'Black Hole' : 'Black and White'}`, timestamp: Date.now() });
+    io.to(roomId).emit('room_updated', sanitizeRoom(room));
+    io.emit('rooms_list', getPublicRooms());
+  });
+
+  socket.on('switch_role', ({ roomId, role }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'waiting') return;
+    if (room.host === socket.id) return; 
+    
+    const isPlayer = room.players.some(p => p.id === socket.id);
+    const user = isPlayer ? room.players.find(p => p.id === socket.id) : room.spectators.find(s => s.id === socket.id);
+    if (!user) return;
+    
+    if (role === 'player') {
+       if (isPlayer || room.players.length >= 2) return;
+       room.spectators = room.spectators.filter(s => s.id !== socket.id);
+       room.players.push(user);
+       socket.leave(`${roomId}_spectators`);
+       io.to(roomId).emit('chat_message', { system: true, message: `${user.name} became a Player`, timestamp: Date.now() });
+    } else if (role === 'spectator') {
+       if (!isPlayer) return;
+       room.players = room.players.filter(p => p.id !== socket.id);
+       room.spectators.push(user);
+       socket.join(`${roomId}_spectators`);
+       io.to(roomId).emit('chat_message', { system: true, message: `${user.name} became a Spectator`, timestamp: Date.now() });
+    }
+
+    io.to(roomId).emit('room_updated', sanitizeRoom(room));
+    io.emit('rooms_list', getPublicRooms());
+  });
+
+  socket.on('resign', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'playing' || !room.gameInstance) return;
+    const isPlayer = room.players.some(p => p.id === socket.id);
+    if (!isPlayer) return;
+    
+    const op = room.players.find(p => p.id !== socket.id);
+    const winnerId = op ? op.id : 'draw';
+    const loser = room.players.find(p => p.id === socket.id);
+    
+    room.gameInstance.endGame(winnerId, `${loser.name} explicitly resigned.`);
+  });
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 const PORT = process.env.PORT || 3001;

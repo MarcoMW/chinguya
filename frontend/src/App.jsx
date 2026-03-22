@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { socket } from './socket';
 import './index.css';
 
@@ -323,14 +323,14 @@ function Lobby() {
   const handleCreate = (e) => {
     e.preventDefault();
     socket.emit('create_room', newRoom, (res) => {
-      if (res.success) navigate(`/room/${res.roomId}`);
+      if (res.success) navigate(`/room/${res.roomId}`, { state: { initialRoom: res.room } });
     });
   };
 
   const handleJoin = (e) => {
     e.preventDefault();
     socket.emit('join_room', { roomId: selectedRoom.id, ...joinData }, (res) => {
-      if (res.success) navigate(`/room/${res.room.id}`);
+      if (res.success) navigate(`/room/${res.room.id}`, { state: { initialRoom: res.room } });
       else alert(res.message);
     });
   };
@@ -425,7 +425,8 @@ function Lobby() {
 function Room() {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const [room, setRoom] = useState(null);
+  const location = useLocation();
+  const [room, setRoom] = useState(location.state?.initialRoom || null);
   const [gameState, setGameState] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [timers, setTimers] = useState(null);
@@ -438,6 +439,17 @@ function Room() {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (room && room.status === 'playing') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [room]);
+
+  useEffect(() => {
     if (!socket.connected) {
       navigate('/lobby');
       return;
@@ -447,6 +459,11 @@ function Room() {
       setRoom(updatedRoom);
       if (updatedRoom.status === 'playing') setGameStarted(true);
       else setGameStarted(false);
+    });
+
+    socket.on('room_disbanded', () => {
+      alert("Host has left or disbanded the room.");
+      navigate('/lobby');
     });
 
     socket.on('game_started', () => setGameStarted(true));
@@ -463,6 +480,7 @@ function Room() {
 
     return () => {
       socket.off('room_updated');
+      socket.off('room_disbanded');
       socket.off('game_started');
       socket.off('game_state_update');
       socket.off('game_ended');
@@ -504,14 +522,35 @@ function Room() {
         <div className="glass-panel" style={{ flex: 1, maxWidth: '100%', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 className="title" style={{ fontSize: '2.5rem', margin: 0 }}>
-              {room.name} <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle'}}>({room.gameType === 'black_hole' ? 'Black Hole' : 'Black and White'})</span>
+              {room.name} 
+              {isHost && room.status === 'waiting' ? (
+                 <select style={{...inputStyle, width: 'auto', display: 'inline-block', marginLeft: '1rem', padding: '0.5rem', fontSize: '1.2rem', verticalAlign: 'middle', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-color)'}} value={room.gameType} onChange={e => socket.emit('change_game_type', { roomId, type: e.target.value })}>
+                   <option value="black_and_white">Black and White</option>
+                   <option value="black_hole">Black Hole</option>
+                 </select>
+              ) : (
+                 <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle', marginLeft: '10px'}}>({room.gameType === 'black_hole' ? 'Black Hole' : 'Black and White'})</span>
+              )}
             </h2>
-            <Link to="/lobby" className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {room.status === 'playing' && isPlayer && (
+                 <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: '#a61c28', color: '#fff', border: '1px solid #ff4d4d' }} onClick={() => { if(confirm("Are you sure you want to resign? You will instantly lose the game.")) socket.emit('resign', { roomId }) }}>Resign</button>
+              )}
+              <Link to="/lobby" className="btn-primary btn-outline" onClick={() => socket.emit('leave_room', { roomId })} style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
+            </div>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
             <span style={{ color: 'var(--text-secondary)' }}>Status: {room.status === 'waiting' ? 'Waiting for players...' : 'In Game 🟢'}</span>
-            <span style={{ color: 'var(--text-secondary)' }}>Role: {isPlayer ? 'Player' : 'Spectator'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+               <span style={{ color: 'var(--text-secondary)' }}>Role: {isPlayer ? 'Player' : 'Spectator'}</span>
+               {room.status === 'waiting' && !isHost && isPlayer && (
+                  <button className="btn-primary btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }} onClick={() => socket.emit('switch_role', { roomId, role: 'spectator' })}>Switch to Spectator</button>
+               )}
+               {room.status === 'waiting' && !isPlayer && room.players.length < 2 && (
+                  <button className="btn-primary btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }} onClick={() => socket.emit('switch_role', { roomId, role: 'player' })}>Join as Player</button>
+               )}
+            </div>
           </div>
 
           {!gameStarted ? (
