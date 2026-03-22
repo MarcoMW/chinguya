@@ -4,6 +4,42 @@ class Game {
     this.io = io;
     this.state = {};
     this.status = 'playing'; // 'playing' | 'ended'
+
+    // Timers Implementation
+    this.timers = {};
+    if (room.players.length === 2) {
+      this.timers[room.players[0].id] = { main: 60, reserve: 300 };
+      this.timers[room.players[1].id] = { main: 60, reserve: 300 };
+    }
+    this.activeTurnPlayer = null;
+    this.timerInterval = setInterval(() => this.tickTimers(), 1000);
+  }
+
+  tickTimers() {
+    if (this.status !== 'playing' || !this.state || this.state.phase !== 'playing') return;
+    
+    const turn = this.state.turn;
+    if (!turn || !this.timers[turn]) return;
+    
+    if (this.activeTurnPlayer !== turn) {
+      if (this.activeTurnPlayer && this.timers[this.activeTurnPlayer]) {
+        this.timers[this.activeTurnPlayer].main = 60; // Reset main timer instantly
+      }
+      this.activeTurnPlayer = turn;
+    }
+
+    const t = this.timers[turn];
+    if (t.main > 0) t.main--;
+    else if (t.reserve > 0) t.reserve--;
+    else {
+      // Timeout
+      if (this.timerInterval) clearInterval(this.timerInterval);
+      const winnerId = this.room.players.find(p => p.id !== turn)?.id;
+      this.endGame(winnerId, 'Time Limit Exceeded!');
+      return;
+    }
+
+    this.io.to(this.room.id).emit('timer_sync', this.timers);
   }
 
   // To be overridden by specific games (Black & White / Black Hole)
@@ -14,6 +50,8 @@ class Game {
 
   // Common End Game logic
   endGame(winnerId, reason) {
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    
     this.status = 'ended';
     this.room.status = 'waiting';
     

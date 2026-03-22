@@ -116,8 +116,15 @@ io.on('connection', (socket) => {
     room.status = 'playing';
     
     // Abstract Factory execution
-    room.gameInstance = new Game(room, io);
-    room.gameInstance.state = { message: `Engine instantiated for ${room.gameType}`, overlay: true };
+    const BlackAndWhite = require('./games/BlackAndWhite');
+    const BlackHole = require('./games/BlackHole');
+    if (room.gameType === 'black_and_white') {
+      room.gameInstance = new BlackAndWhite(room, io);
+    } else if (room.gameType === 'black_hole') {
+      room.gameInstance = new BlackHole(room, io);
+    } else {
+      room.gameInstance = new Game(room, io);
+    }
     
     io.to(roomId).emit('chat_message', { system: true, message: `The game is starting!`, timestamp: Date.now() });
     io.to(roomId).emit('game_started');
@@ -158,6 +165,11 @@ io.on('connection', (socket) => {
       if (updated) {
         if (removedUser) io.to(roomId).emit('chat_message', { system: true, message: `${removedUser.name} left the room`, timestamp: Date.now() });
         
+        // Abandon game if in progress
+        if (room.status === 'playing' && room.gameInstance) {
+           room.gameInstance.endGame('draw', 'A player disconnected. Match forcibly aborted.');
+        }
+
         if (room.host === socket.id && room.players.length > 0) {
           room.host = room.players[0].id;
           io.to(roomId).emit('chat_message', { system: true, message: `${room.players[0].name} is now the host`, timestamp: Date.now() });
