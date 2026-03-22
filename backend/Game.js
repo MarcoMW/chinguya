@@ -92,7 +92,6 @@ class Game {
     this.io.to(this.room.id).emit('room_updated', sanitizedRoom);
 
     // Update public lobby
-    const getPublicRooms = require('./index').getPublicRooms;
     if(getPublicRooms) {
       this.io.emit('rooms_list', getPublicRooms());
     }
