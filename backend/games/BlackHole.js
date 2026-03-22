@@ -6,7 +6,6 @@ class BlackHole extends Game {
     this.p1 = room.players[0].id;
     this.p2 = room.players[1].id;
     
-    const firstPlayer = Math.random() < 0.5 ? this.p1 : this.p2;
     this.state = {
       players: {
         [this.p1]: { color: 'red', unplayed: [1,2,3,4,5,6,7,8,9,10] },
@@ -14,14 +13,27 @@ class BlackHole extends Game {
       },
       grid: Array(6).fill(null).map((_, r) => Array(6 - r).fill(null)),
       turnCount: 0,
-      turn: firstPlayer,
-      phase: 'playing',
+      turn: this.p1,
+      phase: 'setup',
       blackHoleResolving: false,
       resultText: null
     };
   }
 
   handleMove(playerId, moveData) {
+    if (this.state.phase === 'setup') {
+      if (playerId !== this.p1) throw new Error("Only P1 can choose the starting player");
+      if (moveData.action === 'choose_first_player') {
+         let starter = moveData.value;
+         if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
+         
+         this.state.turn = starter;
+         this.state.phase = 'playing';
+         this.broadcastState();
+         return;
+      }
+    }
+
     if (this.state.phase !== 'playing') return;
     if (this.state.turn !== playerId) throw new Error("Not your turn");
     if (moveData.action === 'place_piece') {
@@ -92,11 +104,16 @@ class BlackHole extends Game {
         }
         
         const winner = loser === null ? 'draw' : (loser === this.p1 ? this.p2 : this.p1);
-        let reason = `P1 Sum: ${p1Sum}, P2 Sum: ${p2Sum}.`;
+        
+        const p1Name = this.room.players.find(p => p.id === this.p1)?.name || 'Player 1';
+        const p2Name = this.room.players.find(p => p.id === this.p2)?.name || 'Player 2';
+        const winnerName = winner === 'draw' ? 'Nobody' : this.room.players.find(p => p.id === winner)?.name;
+
+        let reason = `${p1Name} Sum: ${p1Sum}, ${p2Name} Sum: ${p2Sum}.`;
         if (loser !== null) {
-            reason += p1Sum === p2Sum ? ' Loss assessed due to highest relative piece values adjacent to hole.' : '';
+            reason += p1Sum === p2Sum ? ` Resolved by highest relative pieces. ${winnerName} Wins!` : ` ${winnerName} Wins!`;
         } else {
-            reason = 'A perfect mirror draw!';
+            reason += ' A perfect mirror draw!';
         }
 
         this.state.resultText = reason;

@@ -6,19 +6,16 @@ class BlackAndWhite extends Game {
     this.p1 = room.players[0].id;
     this.p2 = room.players[1].id;
     
-    // Choose randomly who goes first
-    const firstPlayer = Math.random() < 0.5 ? this.p1 : this.p2;
-
     this.state = {
       players: {
         [this.p1]: { score: 0, tiles: this.shuffle([0,1,2,3,4,5,6,7,8]), playedThisRound: null, winOrder: -1 },
         [this.p2]: { score: 0, tiles: this.shuffle([0,1,2,3,4,5,6,7,8]), playedThisRound: null, winOrder: -1 }
       },
       round: 1,
-      turn: firstPlayer,
-      firstPlayerLastRound: firstPlayer,
+      turn: this.p1,
+      firstPlayerLastRound: null,
       roundWinner: null,
-      phase: 'playing' // 'playing' | 'resolving'
+      phase: 'setup' // 'setup' | 'playing' | 'resolving'
     };
   }
 
@@ -41,7 +38,7 @@ class BlackAndWhite extends Game {
       }
       
       // Mask the played tile for the round
-      if (masked.phase === 'playing' && pData.playedThisRound !== null) {
+      if (pData.playedThisRound !== null) {
         if (pId !== viewerId) {
           const val = pData.playedThisRound;
           pData.playedThisRound = { color: val % 2 === 0 ? 'black' : 'white', hidden: true };
@@ -49,10 +46,6 @@ class BlackAndWhite extends Game {
           const val = pData.playedThisRound;
           pData.playedThisRound = { value: val, color: val % 2 === 0 ? 'black' : 'white' };
         }
-      } else if (pData.playedThisRound !== null) {
-        // Resolving phase (everyone sees the revealed values)
-        const val = pData.playedThisRound;
-        pData.playedThisRound = { value: val, color: val % 2 === 0 ? 'black' : 'white' };
       }
     }
     masked.p1 = this.p1;
@@ -61,6 +54,20 @@ class BlackAndWhite extends Game {
   }
 
   handleMove(playerId, moveData) {
+    if (this.state.phase === 'setup') {
+      if (playerId !== this.p1) throw new Error("Only P1 can choose the starting player");
+      if (moveData.action === 'choose_first_player') {
+         let starter = moveData.value;
+         if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
+         
+         this.state.turn = starter;
+         this.state.firstPlayerLastRound = starter;
+         this.state.phase = 'playing';
+         this.broadcastState();
+         return;
+      }
+    }
+
     if (this.state.phase !== 'playing') return;
     if (this.state.turn !== playerId) throw new Error("Not your turn");
     
@@ -110,6 +117,10 @@ class BlackAndWhite extends Game {
       this.state.roundWinner = 'tie';
     }
 
+    if (this.state.round === 9) {
+      this.state.matchWinner = this.computeMatchWinner();
+    }
+
     this.broadcastState();
 
     setTimeout(() => {
@@ -127,18 +138,20 @@ class BlackAndWhite extends Game {
     }, 4500); // 4.5 seconds to examine the result
   }
   
-  calculateWinner() {
+  computeMatchWinner() {
     const score1 = this.state.players[this.p1].score;
     const score2 = this.state.players[this.p2].score;
-    let winner = 'draw';
-    
-    if (score1 > score2) winner = this.p1;
-    else if (score2 > score1) winner = this.p2;
-    else if (score1 > 0) { // Tie-breaker by chronological achievement
-      if (this.state.players[this.p1].winOrder < this.state.players[this.p2].winOrder) winner = this.p1;
-      else winner = this.p2;
+    if (score1 > score2) return this.p1;
+    if (score2 > score1) return this.p2;
+    if (score1 > 0) {
+      if (this.state.players[this.p1].winOrder < this.state.players[this.p2].winOrder) return this.p1;
+      else return this.p2;
     }
-    
+    return 'draw';
+  }
+
+  calculateWinner() {
+    const winner = this.computeMatchWinner();
     const reason = winner === 'draw' ? 'The game is a 0-0 draw.' : 'Determined by points/tie-breakers.';
     this.endGame(winner, reason);
   }

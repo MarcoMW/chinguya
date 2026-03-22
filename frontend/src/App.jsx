@@ -13,14 +13,35 @@ const TimerDisplay = ({ timeObj, isActive }) => {
    
    return (
       <span style={{ 
-          background: isActive ? (isReserve ? '#e90064' : '#00e676') : 'rgba(255,255,255,0.1)', 
-          color: isActive ? (isReserve ? '#fff' : '#000') : 'var(--text-secondary)',
+          background: isActive ? (isReserve ? '#c62828' : '#d4af37') : 'rgba(255,255,255,0.1)', 
+          color: isActive ? (isReserve ? '#fff' : '#1a0808') : 'var(--text-secondary)',
           padding: '4px 12px', borderRadius: '12px', fontSize: '1rem', fontWeight: 'bold',
-          marginLeft: '15px', boxShadow: isActive ? `0 0 10px ${isReserve ? '#e90064' : '#00e676'}` : 'none',
+          marginLeft: '15px', boxShadow: isActive ? `0 0 10px ${isReserve ? '#c62828' : '#d4af37'}` : 'none',
           display: 'inline-block', verticalAlign: 'middle', transition: 'all 0.3s ease'
       }}>
          ⏱ {timeStr}
       </span>
+   );
+};
+
+const SetupOverlay = ({ gameState, emitMove, isPlayer, p1Id, p2Id }) => {
+   const amIP1 = isPlayer && socket.id === p1Id;
+   
+   if (gameState.phase !== 'setup') return null;
+   
+   return (
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
+         <h2 style={{ color: '#fff', marginBottom: '2rem', fontSize: '2rem' }}>Who should play first?</h2>
+         {amIP1 ? (
+            <div style={{ display: 'flex', gap: '1rem' }}>
+               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p1Id })}>Me</button>
+               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p2Id })}>Opponent</button>
+               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: 'random' })}>Random</button>
+            </div>
+         ) : (
+            <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>Waiting for Room Host to configure the match...</div>
+         )}
+      </div>
    );
 };
 
@@ -63,7 +84,8 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '500px', background: 'radial-gradient(circle at top, #1a1a25 0%, #000 100%)', padding: '1rem', borderRadius: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '500px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
+      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={gameState.p1} p2Id={gameState.p2} />
       
       {/* Top: Opponent */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -83,8 +105,13 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
         </div>
         
         {gameState.phase === 'resolving' && gameState.roundWinner && (
-          <div style={{ position: 'absolute', zIndex: 10, fontSize: '2rem', fontWeight: 'bold', color: '#00ff88', textShadow: '0 0 20px #00ff88', animation: 'fadeUp 0.5s', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.8)', padding: '1rem 3rem', borderRadius: '50px' }}>
-            {gameState.roundWinner === 'tie' ? 'Tie! No points.' : `${gameState.roundWinner === myId ? 'You Win' : 'Opponent Wins'} the round!`}
+          <div style={{ position: 'absolute', zIndex: 10, textAlign: 'center', fontSize: '2rem', fontWeight: 'bold', color: '#d4af37', textShadow: '0 0 20px rgba(212,175,55,0.8)', animation: 'fadeUp 0.5s', top: '50%', transform: 'translateY(-50%)', background: 'rgba(26, 8, 8, 0.9)', padding: '1.5rem 3rem', borderRadius: '30px', border: '1px solid #d4af37' }}>
+            <div>{gameState.roundWinner === 'tie' ? 'Tie! No points.' : `${gameState.roundWinner === myId ? 'You Win' : 'Opponent Wins'} the round!`}</div>
+            {gameState.matchWinner && (
+               <div style={{ marginTop: '1rem', fontSize: '2.5rem', color: '#fff', textShadow: 'none' }}>
+                  {gameState.matchWinner === 'draw' ? 'Match Draw!' : `${gameState.matchWinner === myId ? 'YOU WIN THE MATCH!' : 'OPPONENT WINS THE MATCH!'}`}
+               </div>
+            )}
           </div>
         )}
         
@@ -101,7 +128,7 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
         </div>
 
         {gameState.phase === 'playing' && (
-          <div style={{ marginTop: '2rem', fontSize: '1.1rem', fontWeight: '600', color: isMyTurn ? '#00e676' : 'var(--text-secondary)' }}>
+          <div style={{ marginTop: '2rem', fontSize: '1.2rem', fontWeight: 'bold', color: isMyTurn ? '#d4af37' : 'var(--text-secondary)', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.5rem', borderRadius: '50px', border: isMyTurn ? '1px solid rgba(212, 175, 55, 0.3)' : 'none' }}>
             {isMyTurn ? 'Your turn to play!' : 'Waiting for opponent...'}
           </div>
         )}
@@ -143,7 +170,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
     let val = '';
     
     if (cell) {
-        bgColor = gameState.players[cell.owner].color === 'red' ? '#e90064' : '#1e50ff';
+        bgColor = gameState.players[cell.owner].color === 'red' ? '#a61c28' : '#1c4da6';
         val = cell.value;
     }
     
@@ -177,7 +204,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
   const renderPieces = (playerId, opacity, highlightNext) => {
       const data = gameState.players[playerId];
       const isRed = data.color === 'red';
-      const bgColor = isRed ? '#e90064' : '#1e50ff';
+      const bgColor = isRed ? '#a61c28' : '#1c4da6';
       const nextPiece = data.unplayed[0];
       
       return [1,2,3,4,5,6,7,8,9,10].map(val => {
@@ -189,8 +216,8 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
                 background: isPlayed ? 'rgba(255,255,255,0.1)' : bgColor,
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 fontWeight: 'bold', color: isPlayed ? 'rgba(255,255,255,0.3)' : 'white',
-                border: isNext ? '2px solid #00ff88' : '2px solid transparent',
-                boxShadow: isNext ? '0 0 15px #00ff88' : 'none',
+                border: isNext ? '2px solid #d4af37' : '2px solid transparent',
+                boxShadow: isNext ? '0 0 15px rgba(212,175,55,0.8)' : 'none',
                 opacity: opacity,
                 fontSize: '0.9rem',
                 transition: 'all 0.3s ease',
@@ -203,7 +230,8 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', background: 'radial-gradient(circle at center, #1b1b28 0%, #0d0d14 100%)', padding: '1rem', borderRadius: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
+      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={p1Id} p2Id={p2Id} />
       
       {/* Top: Opponent */}
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -219,7 +247,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
       {/* Center: Triangle Board */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', margin: '2rem 0', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', padding: '2rem' }}>
         {gameState.resultText && (
-            <div style={{ marginBottom: '1.5rem', color: '#00ff88', fontSize: '1.2rem', background: 'rgba(0,0,0,0.8)', padding: '1rem 2rem', borderRadius: '50px', animation: 'fadeUp 0.5s', fontWeight: 'bold' }}>
+            <div style={{ marginBottom: '1.5rem', color: '#d4af37', fontSize: '1.2rem', background: 'rgba(26, 8, 8, 0.9)', padding: '1rem 2rem', borderRadius: '50px', animation: 'fadeUp 0.5s', fontWeight: 'bold', border: '1px solid #d4af37' }}>
                {gameState.resultText}
             </div>
         )}
@@ -232,7 +260,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
         ))}
 
         {gameState.phase === 'playing' && (
-          <div style={{ marginTop: '2rem', fontSize: '1.2rem', fontWeight: 'bold', color: isMyTurn ? '#00e676' : 'var(--text-secondary)', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 1.5rem', borderRadius: '50px' }}>
+          <div style={{ marginTop: '2rem', fontSize: '1.2rem', fontWeight: 'bold', color: isMyTurn ? '#d4af37' : 'var(--text-secondary)', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.5rem', borderRadius: '50px', border: isMyTurn ? '1px solid rgba(212, 175, 55, 0.3)' : 'none' }}>
             {isMyTurn ? 'Your turn to place your next piece!' : 'Waiting for opponent...'}
           </div>
         )}
@@ -258,8 +286,8 @@ function Home() {
   return (
     <div className="app-container">
       <div className="glass-panel">
-        <h1 className="title">THE GENIUS</h1>
-        <p className="subtitle">Outsmart, Outplay, Outlast. Experience the ultimate psychological warfare 1v1 card and board games.</p>
+        <h1 className="title" style={{ fontSize: '5rem' }}>Chinguya!</h1>
+        <p className="subtitle">Online 1v1 card and board games inspired by The Genius</p>
         <Link to="/lobby" className="btn-primary">ENTER LOBBY</Link>
       </div>
     </div>
@@ -323,7 +351,7 @@ function Lobby() {
         {!showCreate && !selectedRoom && (
           <>
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-              <button className="btn-primary" onClick={() => setShowCreate(true)}>Create Room</button>
+              <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowCreate(true)}>Create Room</button>
             </div>
             
             <div style={{ textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px' }}>
@@ -340,7 +368,7 @@ function Lobby() {
                           Status: {r.status} | Players: {r.playersCount}/2 | Spectators: {r.spectatorsCount}
                         </span>
                       </div>
-                      <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', background: 'var(--bg-gradient)', border: '1px solid var(--glass-border)' }} onClick={() => setSelectedRoom(r)}>Join</button>
+                      <button className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }} onClick={() => setSelectedRoom(r)}>Join</button>
                     </li>
                   ))}
                 </ul>
@@ -363,8 +391,8 @@ function Lobby() {
             </div>
             <div style={{ marginBottom: '1.5rem' }}><label style={labelStyle}>Password (optional):</label><input type="password" style={inputStyle} value={newRoom.password} onChange={e => setNewRoom({...newRoom, password: e.target.value})} placeholder="Leave blank for public" /></div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button type="submit" className="btn-primary">Create</button>
-              <button type="button" className="btn-primary btn-outline" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button type="submit" className="btn-primary" style={{ flex: 1 }}>Create</button>
+              <button type="button" className="btn-primary btn-outline" style={{ flex: 1 }} onClick={() => setShowCreate(false)}>Cancel</button>
             </div>
           </form>
         )}
@@ -384,8 +412,8 @@ function Lobby() {
               </select>
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button type="submit" className="btn-primary">Join Room</button>
-              <button type="button" className="btn-primary btn-outline" onClick={() => setSelectedRoom(null)}>Cancel</button>
+              <button type="submit" className="btn-primary" style={{ flex: 1 }}>Join Room</button>
+              <button type="button" className="btn-primary btn-outline" style={{ flex: 1 }} onClick={() => setSelectedRoom(null)}>Cancel</button>
             </div>
           </form>
         )}
@@ -478,7 +506,7 @@ function Room() {
             <h2 className="title" style={{ fontSize: '2.5rem', margin: 0 }}>
               {room.name} <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle'}}>({room.gameType === 'black_hole' ? 'Black Hole' : 'Black and White'})</span>
             </h2>
-            <Link to="/lobby" className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem' }}>Leave Room</Link>
+            <Link to="/lobby" className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
           </div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -552,13 +580,13 @@ function Room() {
         <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {activeTab === 'general' 
             ? chatMessages.map((msg, idx) => (
-                <div key={idx} style={{ background: msg.system ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.95rem' }}>
-                  {msg.system ? (<span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>{msg.message}</span>) : (<><strong style={{ color: msg.isPlayer ? 'var(--accent-color)' : '#00e676' }}>{msg.sender}: </strong><span style={{ color: 'white' }}>{msg.message}</span></>)}
+                <div key={idx} style={{ background: msg.system ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.4)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.95rem', borderLeft: msg.system ? 'none' : '3px solid rgba(212, 175, 55, 0.3)' }}>
+                  {msg.system ? (<span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>{msg.message}</span>) : (<><strong style={{ color: msg.isPlayer ? 'var(--accent-color)' : '#b5a48b' }}>{msg.sender}: </strong><span style={{ color: 'white' }}>{msg.message}</span></>)}
                 </div>
               ))
             : specMessages.map((msg, idx) => (
-                <div key={idx} style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.95rem' }}>
-                  <strong style={{ color: '#00e676' }}>{msg.sender}: </strong><span style={{ color: 'white' }}>{msg.message}</span>
+                <div key={idx} style={{ background: 'rgba(0,0,0,0.4)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.95rem', borderLeft: '3px solid #b5a48b' }}>
+                  <strong style={{ color: '#b5a48b' }}>{msg.sender}: </strong><span style={{ color: 'white' }}>{msg.message}</span>
                 </div>
               ))
           }
