@@ -661,6 +661,19 @@ function Room() {
                   {room.players.length === 2 && !room.players.every(p => p.ready) && <p style={{ color: '#dc3545', marginTop: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Waiting for all players to click Ready</p>}
                 </div>
               )}
+
+              {!isHost && isPlayer && room.status === 'waiting' && (
+                <div style={{ marginTop: 'auto', textAlign: 'center' }}>
+                  <button 
+                    className={`btn-primary ${!isPlayer.ready ? 'btn-outline' : ''}`}
+                    onClick={() => socket.emit('toggle_ready', { roomId })}
+                    style={{ background: isPlayer.ready ? '#28a745' : 'transparent', borderColor: isPlayer.ready ? '#28a745' : 'var(--accent-color)', color: isPlayer.ready ? '#fff' : 'var(--accent-color)', width: '100%', maxWidth: '400px', fontSize: '1.5rem', padding: '1.5rem' }}
+                  >
+                    {isPlayer.ready ? 'YOU ARE READY' : 'CLICK TO READY UP'}
+                  </button>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>The Host can only start the game once everyone is Ready.</p>
+                </div>
+              )}
             </>
           ) : (
             <div style={{ flex: 1, background: 'rgba(0,0,0,0.4)', borderRadius: '24px', position: 'relative', overflow: 'hidden' }}>
