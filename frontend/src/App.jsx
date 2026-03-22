@@ -24,33 +24,39 @@ const TimerDisplay = ({ timeObj, isActive }) => {
    );
 };
 
-const SetupOverlay = ({ gameState, emitMove, isPlayer, p1Id, p2Id }) => {
+const SetupOverlay = ({ gameState, emitMove, isPlayer, p1Id, p2Id, roomPlayers }) => {
    const amIP1 = isPlayer && socket.id === p1Id;
    
    if (gameState.phase !== 'setup') return null;
+   
+   const p1Name = roomPlayers.find(p => p.id === p1Id)?.name || 'P1';
+   const p2Name = roomPlayers.find(p => p.id === p2Id)?.name || 'P2';
    
    return (
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
          <h2 style={{ color: '#fff', marginBottom: '2rem', fontSize: '2rem' }}>Who should play first?</h2>
          {amIP1 ? (
             <div style={{ display: 'flex', gap: '1rem' }}>
-               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p1Id })}>Me</button>
-               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p2Id })}>Opponent</button>
+               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p1Id })}>{p1Name}</button>
+               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p2Id })}>{p2Name}</button>
                <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: 'random' })}>Random</button>
             </div>
          ) : (
-            <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>Waiting for Room Host to configure the match...</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>Waiting for {p1Name} to configure the match...</div>
          )}
       </div>
    );
 };
 
 // ---- GAME ENGINE WRAPPERS ----
-function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
-  if (!gameState.players) return <div style={{padding: '2rem'}}>Loading Phase 6 Engine...</div>;
+function BlackAndWhiteWrapper({ room, gameState, emitMove, isPlayer, timers }) {
+  if (!gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
 
   const myId = isPlayer ? socket.id : gameState.p1;
   const opponentId = myId === gameState.p1 ? gameState.p2 : gameState.p1;
+
+  const myName = room.players.find(p => p.id === myId)?.name || 'Player';
+  const oppName = room.players.find(p => p.id === opponentId)?.name || 'Opponent';
 
   const myData = gameState.players[myId];
   const oppData = gameState.players[opponentId];
@@ -85,12 +91,12 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '500px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
-      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={gameState.p1} p2Id={gameState.p2} />
+      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={gameState.p1} p2Id={gameState.p2} roomPlayers={room.players} />
       
       {/* Top: Opponent */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
-          Opponent (Score: {oppData.score})
+          {oppName} (Score: {oppData.score})
           <TimerDisplay timeObj={timers && timers[opponentId]} isActive={oppIsTurn} />
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -106,30 +112,54 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
         
         {gameState.phase === 'resolving' && gameState.roundWinner && (
           <div style={{ position: 'absolute', zIndex: 10, textAlign: 'center', fontSize: '2rem', fontWeight: 'bold', color: '#d4af37', textShadow: '0 0 20px rgba(212,175,55,0.8)', animation: 'fadeUp 0.5s', top: '50%', transform: 'translateY(-50%)', background: 'rgba(26, 8, 8, 0.9)', padding: '1.5rem 3rem', borderRadius: '30px', border: '1px solid #d4af37' }}>
-            <div>{gameState.roundWinner === 'tie' ? 'Tie! No points.' : `${gameState.roundWinner === myId ? 'You Win' : 'Opponent Wins'} the round!`}</div>
+            <div>{gameState.roundWinner === 'tie' ? 'Tie! No points.' : `${gameState.roundWinner === myId ? myName : oppName} wins the round!`}</div>
             {gameState.matchWinner && (
                <div style={{ marginTop: '1rem', fontSize: '2.5rem', color: '#fff', textShadow: 'none' }}>
-                  {gameState.matchWinner === 'draw' ? 'Match Draw!' : `${gameState.matchWinner === myId ? 'YOU WIN THE MATCH!' : 'OPPONENT WINS THE MATCH!'}`}
+                  {gameState.matchWinner === 'draw' ? 'Match Draw!' : `${gameState.matchWinner === myId ? myName.toUpperCase() : oppName.toUpperCase()} WINS THE MATCH!`}
                </div>
             )}
           </div>
         )}
         
-        <div style={{ display: 'flex', gap: '5rem', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Opponent</p>
-             {oppData.playedThisRound ? renderTile(oppData.playedThisRound, 'oppPlay') : <div style={{width: '56px', height: '80px', border: '2px dashed var(--glass-border)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)'}}/>}
+        {room.status === 'finished' && gameState.history && gameState.history.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '400px', background: 'rgba(0,0,0,0.5)', borderRadius: '12px', padding: '1rem', zIndex: 5, animation: 'fadeUp 0.8s' }}>
+            <h4 style={{ color: '#d4af37', margin: '0 0 1rem 0', textAlign: 'center', textTransform: 'uppercase' }}>Match History Ledger</h4>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+               <span>R</span>
+               <span style={{ width: '60px', textAlign: 'center' }}>{myName}</span>
+               <span style={{ width: '60px', textAlign: 'center' }}>{oppName}</span>
+               <span>Winner</span>
+            </div>
+            {gameState.history.map(row => {
+               const myTile = myId === gameState.p1 ? row.p1Tile : row.p2Tile;
+               const oppTile = opponentId === gameState.p1 ? row.p1Tile : row.p2Tile;
+               return (
+                 <div key={row.round} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #222', alignItems: 'center' }}>
+                   <span>R{row.round}</span>
+                   <span style={{ width: '40px', textAlign: 'center', fontWeight: 'bold', color: myTile % 2 === 0 ? '#666' : '#111', background: myTile % 2 === 0 ? '#15151e' : '#e0e5ed', padding: '2px 6px', borderRadius: '4px', border: '1px solid #333' }}>{myTile}</span>
+                   <span style={{ width: '40px', textAlign: 'center', fontWeight: 'bold', color: oppTile % 2 === 0 ? '#666' : '#111', background: oppTile % 2 === 0 ? '#15151e' : '#e0e5ed', padding: '2px 6px', borderRadius: '4px', border: '1px solid #333' }}>{oppTile}</span>
+                   <span style={{ color: row.winnerId === myId ? '#d4af37' : (row.winnerId ? '#a61c28' : '#777'), fontWeight: 'bold' }}>{row.winnerId === myId ? 'You' : (row.winnerId ? 'Opp' : 'Tie')}</span>
+                 </div>
+               );
+            })}
           </div>
-          <div style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 'bold', fontStyle: 'italic', opacity: 0.5 }}>VS</div>
-          <div style={{ textAlign: 'center' }}>
-             <p style={{ color: 'var(--accent-color)', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>You</p>
-             {myData.playedThisRound ? renderTile(myData.playedThisRound, 'myPlay') : <div style={{width: '56px', height: '80px', border: '2px dashed var(--glass-border)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)'}}/>}
+        ) : (
+          <div style={{ display: 'flex', gap: '5rem', alignItems: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{oppName}</p>
+               {oppData.playedThisRound ? renderTile(oppData.playedThisRound, 'oppPlay') : <div style={{width: '56px', height: '80px', border: '2px dashed var(--glass-border)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)'}}/>}
+            </div>
+            <div style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 'bold', fontStyle: 'italic', opacity: 0.5 }}>VS</div>
+            <div style={{ textAlign: 'center' }}>
+               <p style={{ color: 'var(--accent-color)', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{myName}</p>
+               {myData.playedThisRound ? renderTile(myData.playedThisRound, 'myPlay') : <div style={{width: '56px', height: '80px', border: '2px dashed var(--glass-border)', borderRadius: '8px', background: 'rgba(255,255,255,0.05)'}}/>}
+            </div>
           </div>
-        </div>
+        )}
 
         {gameState.phase === 'playing' && (
           <div style={{ marginTop: '2rem', fontSize: '1.2rem', fontWeight: 'bold', color: isMyTurn ? '#d4af37' : 'var(--text-secondary)', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.5rem', borderRadius: '50px', border: isMyTurn ? '1px solid rgba(212, 175, 55, 0.3)' : 'none' }}>
-            {isMyTurn ? 'Your turn to play!' : 'Waiting for opponent...'}
+            {isMyTurn ? `${myName}'s turn to play!` : `Waiting for ${oppName}...`}
           </div>
         )}
       </div>
@@ -144,7 +174,7 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
           }))}
         </div>
         <div style={{ color: 'var(--accent-color)', fontSize: '1.2rem', fontWeight: 'bold' }}>
-          You (Score: {myData.score})
+          {myName} (Score: {myData.score})
           {isPlayer && <TimerDisplay timeObj={timers && timers[myId]} isActive={isMyTurn} />}
         </div>
       </div>
@@ -152,14 +182,17 @@ function BlackAndWhiteWrapper({ gameState, emitMove, isPlayer, timers }) {
   );
 }
 
-function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
-  if (!gameState.players) return <div style={{padding: '2rem'}}>Loading Phase 7 Engine...</div>;
+function BlackHoleWrapper({ room, gameState, emitMove, isPlayer, timers }) {
+  if (!gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
 
   const p1Id = Object.keys(gameState.players).find(id => gameState.players[id].color === 'red');
   const p2Id = Object.keys(gameState.players).find(id => gameState.players[id].color === 'blue');
   
   const myRealId = isPlayer ? socket.id : p1Id;
   const oppId = myRealId === p1Id ? p2Id : p1Id;
+
+  const myName = room.players.find(p => p.id === myRealId)?.name || 'Player';
+  const oppName = room.players.find(p => p.id === oppId)?.name || 'Opponent';
 
   const isMyTurn = gameState.phase === 'playing' && gameState.turn === myRealId;
   const isOppTurn = gameState.phase === 'playing' && gameState.turn === oppId;
@@ -231,12 +264,12 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
-      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={p1Id} p2Id={p2Id} />
+      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={p1Id} p2Id={p2Id} roomPlayers={room.players} />
       
       {/* Top: Opponent */}
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '1rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
-          Opponent
+          {oppName}
           <TimerDisplay timeObj={timers && timers[oppId]} isActive={isOppTurn} />
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -261,7 +294,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
 
         {gameState.phase === 'playing' && (
           <div style={{ marginTop: '2rem', fontSize: '1.2rem', fontWeight: 'bold', color: isMyTurn ? '#d4af37' : 'var(--text-secondary)', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1.5rem', borderRadius: '50px', border: isMyTurn ? '1px solid rgba(212, 175, 55, 0.3)' : 'none' }}>
-            {isMyTurn ? 'Your turn to place your next piece!' : 'Waiting for opponent...'}
+            {isMyTurn ? `${myName}'s turn to place the next piece!` : `Waiting for ${oppName}...`}
           </div>
         )}
       </div>
@@ -272,7 +305,7 @@ function BlackHoleWrapper({ gameState, emitMove, isPlayer, timers }) {
            {renderPieces(myRealId, isMyTurn ? 1 : 0.4, isMyTurn)}
         </div>
         <div style={{ color: 'var(--accent-color)', fontSize: '1.1rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
-          You
+          {myName}
           {isPlayer && <TimerDisplay timeObj={timers && timers[myRealId]} isActive={isMyTurn} />}
         </div>
       </div>
@@ -466,7 +499,15 @@ function Room() {
       navigate('/lobby');
     });
 
-    socket.on('game_started', () => setGameStarted(true));
+    socket.on('chat_history', ({ type, messages }) => {
+      if (type === 'general') setChatMessages(messages);
+      else if (type === 'spectator') setSpecMessages(messages);
+    });
+
+    socket.on('game_started', () => {
+      setGameState(null);
+      setGameStarted(true);
+    });
     socket.on('game_state_update', (state) => setGameState(state));
     socket.on('game_ended', ({ winnerId, reason, finalState }) => {
       setGameState(finalState);
@@ -487,6 +528,7 @@ function Room() {
       socket.off('timer_sync');
       socket.off('chat_message');
       socket.off('spectator_chat');
+      socket.off('chat_history');
     };
   }, [navigate]);
 
@@ -532,18 +574,26 @@ function Room() {
                  <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle', marginLeft: '10px'}}>({room.gameType === 'black_hole' ? 'Black Hole' : 'Black and White'})</span>
               )}
             </h2>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               {room.status === 'playing' && isPlayer && (
                  <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: '#a61c28', color: '#fff', border: '1px solid #ff4d4d' }} onClick={() => { if(confirm("Are you sure you want to resign? You will instantly lose the game.")) socket.emit('resign', { roomId }) }}>Resign</button>
+              )}
+              {room.status === 'finished' && isHost && (
+                 <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: 'var(--accent-color)', color: '#1a0808' }} onClick={() => socket.emit('return_to_lobby', { roomId })}>Return to Lobby</button>
               )}
               <Link to="/lobby" className="btn-primary btn-outline" onClick={() => socket.emit('leave_room', { roomId })} style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
             </div>
           </div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Status: {room.status === 'waiting' ? 'Waiting for players...' : 'In Game 🟢'}</span>
+            <span style={{ color: 'var(--text-secondary)' }}>Status: {room.status === 'waiting' ? 'Waiting for players...' : (room.status === 'finished' ? 'Match Finished 🏁' : 'In Game 🟢')}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                <span style={{ color: 'var(--text-secondary)' }}>Role: {isPlayer ? 'Player' : 'Spectator'}</span>
+               {room.status === 'waiting' && isPlayer && (
+                  <button className={`btn-primary ${!isPlayer.ready ? 'btn-outline' : ''}`} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', background: isPlayer.ready ? '#28a745' : 'transparent', borderColor: isPlayer.ready ? '#28a745' : 'var(--accent-color)', color: isPlayer.ready ? '#fff' : 'var(--accent-color)' }} onClick={() => socket.emit('toggle_ready', { roomId })}>
+                     {isPlayer.ready ? 'Ready!' : 'Click to Ready'}
+                  </button>
+               )}
                {room.status === 'waiting' && !isHost && isPlayer && (
                   <button className="btn-primary btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }} onClick={() => socket.emit('switch_role', { roomId, role: 'spectator' })}>Switch to Spectator</button>
                )}
@@ -560,8 +610,9 @@ function Room() {
                   <h3 style={{ color: 'var(--accent-color)', marginBottom: '1rem' }}>Players (2 max)</h3>
                   <ul style={{ listStyle: 'none', padding: 0 }}>
                     {room.players.map((p, i) => (
-                      <li key={p.id} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '0.5rem', borderRadius: '8px' }}>
-                        Player {i+1}: <strong style={{ color: 'white' }}>{p.name}</strong> {p.id === room.host ? '👑 (Host)' : ''}
+                      <li key={p.id} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '0.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Player {i+1}: <strong style={{ color: 'white' }}>{p.name}</strong> {p.id === room.host ? '👑 (Host)' : ''}</span>
+                        <span style={{ color: p.ready ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>{p.ready ? 'READY' : 'NOT READY'}</span>
                       </li>
                     ))}
                   </ul>
@@ -585,12 +636,13 @@ function Room() {
                   <button 
                     className="btn-primary" 
                     onClick={handleStartGame}
-                    disabled={room.players.length < 2}
-                    style={{ opacity: room.players.length < 2 ? 0.5 : 1, width: '100%', maxWidth: '400px', fontSize: '1.5rem', padding: '1.5rem' }}
+                    disabled={room.players.length < 2 || !room.players.every(p => p.ready)}
+                    style={{ opacity: (room.players.length < 2 || !room.players.every(p => p.ready)) ? 0.5 : 1, width: '100%', maxWidth: '400px', fontSize: '1.5rem', padding: '1.5rem' }}
                   >
                     START GAME
                   </button>
                   {room.players.length < 2 && <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>Requires 2 players to start</p>}
+                  {room.players.length === 2 && !room.players.every(p => p.ready) && <p style={{ color: '#dc3545', marginTop: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Waiting for all players to click Ready</p>}
                 </div>
               )}
             </>

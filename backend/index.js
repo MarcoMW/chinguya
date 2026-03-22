@@ -41,6 +41,16 @@ function sanitizeRoom(room) {
   };
 }
 
+function sendSystemMessage(roomId, text, ioInstance) {
+  const room = rooms[roomId];
+  if (!room) return;
+  const msg = { system: true, message: text, timestamp: Date.now() };
+  if (!room.chatHistory) room.chatHistory = [];
+  room.chatHistory.push(msg);
+  if (room.chatHistory.length > 200) room.chatHistory.shift();
+  ioInstance.to(roomId).emit('chat_message', msg);
+}
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   socket.emit('rooms_list', getPublicRooms());
@@ -54,10 +64,12 @@ io.on('connection', (socket) => {
       password: password || '',
       host: socket.id,
       gameType: gameType || 'black_and_white',
-      players: [{ id: socket.id, name: hostName }],
+      players: [{ id: socket.id, name: hostName, ready: false }],
       spectators: [],
       status: 'waiting',
-      gameInstance: null
+      gameInstance: null,
+      chatHistory: [],
+      spectatorHistory: []
     };
     
     socket.join(roomId);
@@ -72,16 +84,20 @@ io.on('connection', (socket) => {
     if (room.status !== 'waiting' && role === 'player') return callback({ success: false, message: 'Game already started' });
     if (role === 'player' && room.players.length >= 2) return callback({ success: false, message: 'Room is full (2 players max)' });
 
-    const user = { id: socket.id, name: playerName || (role === 'player' ? 'Player 2' : 'Spectator') };
+    const user = { id: socket.id, name: playerName || (role === 'player' ? 'Player 2' : 'Spectator'), ready: false };
     
     if (role === 'player') room.players.push(user);
     else { room.spectators.push(user); socket.join(`${roomId}_spectators`); }
 
     socket.join(roomId);
-    io.to(roomId).emit('chat_message', { system: true, message: `${user.name} joined as ${role}`, timestamp: Date.now() });
+    sendSystemMessage(roomId, `${user.name} joined as ${role}`, io);
     
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
+    
+    // Explicitly send histories back natively!
+    socket.emit('chat_history', { type: 'general', messages: room.chatHistory });
+    if (role !== 'player') socket.emit('chat_history', { type: 'spectator', messages: room.spectatorHistory });
     
     // If joining mid-game, explicitly send the game state to the joiner immediately
     if (room.status === 'playing' && room.gameInstance) {
@@ -105,9 +121,15 @@ io.on('connection', (socket) => {
 
     if (type === 'spectator') {
       if (isPlayer) return;
-      io.to(`${roomId}_spectators`).emit('spectator_chat', { sender: senderName, message, timestamp: Date.now() });
+      const msgObj = { sender: senderName, message, timestamp: Date.now() };
+      room.spectatorHistory.push(msgObj);
+      if (room.spectatorHistory.length > 200) room.spectatorHistory.shift();
+      io.to(`${roomId}_spectators`).emit('spectator_chat', msgObj);
     } else {
-      io.to(roomId).emit('chat_message', { sender: senderName, message, isPlayer, timestamp: Date.now() });
+      const msgObj = { sender: senderName, message, isPlayer, timestamp: Date.now() };
+      room.chatHistory.push(msgObj);
+      if (room.chatHistory.length > 200) room.chatHistory.shift();
+      io.to(roomId).emit('chat_message', msgObj);
     }
   });
 
@@ -116,6 +138,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (room.host !== socket.id) return callback({ success: false, message: 'Only host can start the game' });
     if (room.players.length < 2) return callback({ success: false, message: 'Need 2 players to start' });
+    if (!room.players.every(p => p.ready)) return callback({ success: false, message: 'Not all players are ready' });
     
     room.status = 'playing';
     
@@ -130,7 +153,7 @@ io.on('connection', (socket) => {
       room.gameInstance = new Game(room, io);
     }
     
-    io.to(roomId).emit('chat_message', { system: true, message: `The game is starting!`, timestamp: Date.now() });
+    sendSystemMessage(roomId, `The game is starting!`, io);
     io.to(roomId).emit('game_started');
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
@@ -158,7 +181,7 @@ io.on('connection', (socket) => {
 
     // If host leaves, entire room is destroyed
     if (isHost) {
-       io.to(roomId).emit('chat_message', { system: true, message: `Host ${user.name} left. Room disbanded.`, timestamp: Date.now() });
+       sendSystemMessage(roomId, `Host ${user.name} left. Room disbanded.`, io);
        io.to(roomId).emit('room_disbanded');
        if (room.gameInstance && room.status === 'playing') room.gameInstance.destroy();
        delete rooms[roomId];
@@ -169,7 +192,7 @@ io.on('connection', (socket) => {
     // Normal participant leaves
     room.players = room.players.filter(p => p.id !== socketId);
     room.spectators = room.spectators.filter(s => s.id !== socketId);
-    io.to(roomId).emit('chat_message', { system: true, message: `${user.name} left the room`, timestamp: Date.now() });
+    sendSystemMessage(roomId, `${user.name} left the room`, io);
 
     // Auto-forfeit
     if (isPlayer && room.status === 'playing' && room.gameInstance) {
@@ -202,7 +225,7 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'waiting' || room.host !== socket.id) return;
     room.gameType = type;
-    io.to(roomId).emit('chat_message', { system: true, message: `Host changed game to ${type === 'black_hole' ? 'Black Hole' : 'Black and White'}`, timestamp: Date.now() });
+    sendSystemMessage(roomId, `Host changed game to ${type === 'black_hole' ? 'Black Hole' : 'Black and White'}`, io);
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
   });
@@ -219,17 +242,40 @@ io.on('connection', (socket) => {
     if (role === 'player') {
        if (isPlayer || room.players.length >= 2) return;
        room.spectators = room.spectators.filter(s => s.id !== socket.id);
+       user.ready = false;
        room.players.push(user);
        socket.leave(`${roomId}_spectators`);
-       io.to(roomId).emit('chat_message', { system: true, message: `${user.name} became a Player`, timestamp: Date.now() });
+       sendSystemMessage(roomId, `${user.name} became a Player`, io);
     } else if (role === 'spectator') {
        if (!isPlayer) return;
        room.players = room.players.filter(p => p.id !== socket.id);
        room.spectators.push(user);
        socket.join(`${roomId}_spectators`);
-       io.to(roomId).emit('chat_message', { system: true, message: `${user.name} became a Spectator`, timestamp: Date.now() });
+       sendSystemMessage(roomId, `${user.name} became a Spectator`, io);
     }
 
+    io.to(roomId).emit('room_updated', sanitizeRoom(room));
+    io.emit('rooms_list', getPublicRooms());
+  });
+
+  socket.on('toggle_ready', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'waiting') return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+    player.ready = !player.ready;
+    io.to(roomId).emit('room_updated', sanitizeRoom(room));
+    io.emit('rooms_list', getPublicRooms());
+  });
+
+  socket.on('return_to_lobby', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'finished' || room.host !== socket.id) return;
+    
+    room.status = 'waiting';
+    room.gameInstance = null;
+    room.players.forEach(p => p.ready = false);
+    
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
   });

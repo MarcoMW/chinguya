@@ -15,7 +15,8 @@ class BlackAndWhite extends Game {
       turn: this.p1,
       firstPlayerLastRound: null,
       roundWinner: null,
-      phase: 'setup' // 'setup' | 'playing' | 'resolving'
+      phase: 'setup', // 'setup' | 'playing' | 'resolving'
+      history: []
     };
   }
 
@@ -39,7 +40,7 @@ class BlackAndWhite extends Game {
       
       // Mask the played tile for the round
       if (pData.playedThisRound !== null) {
-        if (pId !== viewerId) {
+        if (pId !== viewerId && this.status !== 'ended') {
           const val = pData.playedThisRound;
           pData.playedThisRound = { color: val % 2 === 0 ? 'black' : 'white', hidden: true };
         } else {
@@ -47,6 +48,11 @@ class BlackAndWhite extends Game {
           pData.playedThisRound = { value: val, color: val % 2 === 0 ? 'black' : 'white' };
         }
       }
+    }
+    
+    // Completely hide history ledger mid-match to prevent cheating
+    if (this.status !== 'ended') {
+      masked.history = [];
     }
     masked.p1 = this.p1;
     masked.p2 = this.p2;
@@ -116,6 +122,13 @@ class BlackAndWhite extends Game {
       this.state.firstPlayerLastRound = wentSecond;
       this.state.roundWinner = 'tie';
     }
+
+    this.state.history.push({
+      round: this.state.round,
+      p1Tile: v1,
+      p2Tile: v2,
+      winnerId: this.state.roundWinner === 'tie' ? null : this.state.roundWinner
+    });
 
     if (this.state.round === 9) {
       this.state.matchWinner = this.computeMatchWinner();

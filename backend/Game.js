@@ -55,10 +55,10 @@ class Game {
 
   // Common End Game logic
   endGame(winnerId, reason) {
-    this.destroy();
+    this.destroy(); // Clear intervals
     
     this.status = 'ended';
-    this.room.status = 'waiting';
+    this.room.status = 'finished';
     
     this.io.to(this.room.id).emit('game_ended', { winnerId, reason, finalState: this.state });
     
@@ -67,12 +67,15 @@ class Game {
     if(player) winnerName = player.name;
     else if(winnerId === 'draw') winnerName = 'Nobody';
 
+    const getPublicRooms = require('./index').getPublicRooms;
+    // We do NOT use sendSystemMessage natively here due to Circular requires, we emit directly:
     this.io.to(this.room.id).emit('chat_message', { 
       system: true, 
-      message: `Game Over! ${reason} Winner: ${winnerName}` 
+      message: `Game Over! ${reason} Winner: ${winnerName}`,
+      timestamp: Date.now()
     });
     
-    this.room.gameInstance = null; // Clean up memory
+    // Note: Memory cleanup (this.room.gameInstance = null) is deferred securely until the Host explicitly clicks "return_to_lobby", enabling postgame view!
     
     // Emit the room update
     const sanitizedRoom = {
