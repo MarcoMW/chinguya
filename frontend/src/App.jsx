@@ -679,8 +679,8 @@ function Room() {
             <div style={{ flex: 1, background: 'rgba(0,0,0,0.4)', borderRadius: '24px', position: 'relative', overflow: 'hidden' }}>
               {gameState ? (
                 room.gameType === 'black_hole' 
-                  ? <BlackHoleWrapper gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
-                  : <BlackAndWhiteWrapper gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
+                  ? <BlackHoleWrapper room={room} gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
+                  : <BlackAndWhiteWrapper room={room} gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
               ) : (
                 <div style={{ padding: '2rem', textAlign: 'center' }}>Syncing game state...</div>
               )}
