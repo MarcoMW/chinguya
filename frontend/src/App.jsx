@@ -51,16 +51,18 @@ const SetupOverlay = ({ gameState, emitMove, isPlayer, p1Id, p2Id, roomPlayers }
 
 // ---- GAME ENGINE WRAPPERS ----
 function BlackAndWhiteWrapper({ room, gameState, emitMove, isPlayer, timers }) {
-  if (!gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
+  if (!gameState || !gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
 
   const myId = isPlayer ? socket.id : gameState.p1;
   const opponentId = myId === gameState.p1 ? gameState.p2 : gameState.p1;
 
-  const myName = room.players.find(p => p.id === myId)?.name || 'Player';
-  const oppName = room.players.find(p => p.id === opponentId)?.name || 'Opponent';
+  const myName = room?.players?.find(p => p.id === myId)?.name || 'Player';
+  const oppName = room?.players?.find(p => p.id === opponentId)?.name || 'Opponent';
 
   const myData = gameState.players[myId];
   const oppData = gameState.players[opponentId];
+  
+  if (!myData || !oppData) return <div style={{padding: '2rem'}}>Awaiting player sync...</div>;
   const isMyTurn = gameState.phase === 'playing' && gameState.turn === myId;
   const oppIsTurn = gameState.phase === 'playing' && gameState.turn === opponentId;
 
@@ -184,16 +186,16 @@ function BlackAndWhiteWrapper({ room, gameState, emitMove, isPlayer, timers }) {
 }
 
 function BlackHoleWrapper({ room, gameState, emitMove, isPlayer, timers }) {
-  if (!gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
+  if (!gameState || !gameState.players) return <div style={{padding: '2rem'}}>Initializing Game...</div>;
 
-  const p1Id = Object.keys(gameState.players).find(id => gameState.players[id].color === 'red');
-  const p2Id = Object.keys(gameState.players).find(id => gameState.players[id].color === 'blue');
+  const p1Id = gameState.p1 || Object.keys(gameState.players).find(id => gameState.players[id].color === 'red');
+  const p2Id = gameState.p2 || Object.keys(gameState.players).find(id => gameState.players[id].color === 'blue');
   
   const myRealId = isPlayer ? socket.id : p1Id;
   const oppId = myRealId === p1Id ? p2Id : p1Id;
 
-  const myName = room.players.find(p => p.id === myRealId)?.name || 'Player';
-  const oppName = room.players.find(p => p.id === oppId)?.name || 'Opponent';
+  const myName = room?.players?.find(p => p.id === myRealId)?.name || 'Player';
+  const oppName = room?.players?.find(p => p.id === oppId)?.name || 'Opponent';
 
   const isMyTurn = gameState.phase === 'playing' && gameState.turn === myRealId;
   const isOppTurn = gameState.phase === 'playing' && gameState.turn === oppId;
@@ -237,6 +239,7 @@ function BlackHoleWrapper({ room, gameState, emitMove, isPlayer, timers }) {
   
   const renderPieces = (playerId, opacity, highlightNext) => {
       const data = gameState.players[playerId];
+      if (!data) return null;
       const isRed = data.color === 'red';
       const bgColor = isRed ? '#a61c28' : '#1c4da6';
       const nextPiece = data.unplayed[0];

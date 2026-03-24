@@ -141,6 +141,13 @@ class BlackHole extends Game {
     }
     return list;
   }
+
+  getMaskedState(viewerId) {
+    const masked = JSON.parse(JSON.stringify(this.state));
+    masked.p1 = this.p1;
+    masked.p2 = this.p2;
+    return masked;
+  }
 }
 
 module.exports = BlackHole;
