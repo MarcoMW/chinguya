@@ -233,7 +233,6 @@ io.on('connection', (socket) => {
   socket.on('switch_role', ({ roomId, role }) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'waiting') return;
-    if (room.host === socket.id) return; 
     
     const isPlayer = room.players.some(p => p.id === socket.id);
     const user = isPlayer ? room.players.find(p => p.id === socket.id) : room.spectators.find(s => s.id === socket.id);
@@ -254,6 +253,19 @@ io.on('connection', (socket) => {
        sendSystemMessage(roomId, `${user.name} became a Spectator`, io);
     }
 
+    io.to(roomId).emit('room_updated', sanitizeRoom(room));
+    io.emit('rooms_list', getPublicRooms());
+  });
+
+  socket.on('change_host', ({ roomId, newHostId }) => {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'waiting' || room.host !== socket.id) return;
+
+    const newHost = [...room.players, ...room.spectators].find(p => p.id === newHostId);
+    if (!newHost) return;
+
+    room.host = newHostId;
+    sendSystemMessage(roomId, `${newHost.name} is now the Host`, io);
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
   });

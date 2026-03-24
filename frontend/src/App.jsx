@@ -474,6 +474,8 @@ function Room() {
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState('general');
   const [rulesMarkdown, setRulesMarkdown] = useState('');
+  const [showChangeHost, setShowChangeHost] = useState(false);
+  const [showGameOptions, setShowGameOptions] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -577,6 +579,9 @@ function Room() {
     socket.emit('game_move', { roomId, moveData });
   };
 
+  const [newHostId, setNewHostId] = useState('');
+  const allParticipants = [...room.players, ...room.spectators].filter(p => p.id !== socket.id);
+
   return (
     <div className="app-container" style={{ padding: '0', display: 'flex', alignItems: 'stretch' }}>
       <div style={{ flex: 3, padding: '2rem', display: 'flex', flexDirection: 'column' }}>
@@ -594,13 +599,19 @@ function Room() {
               )}
             </h2>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              {room.status === 'playing' && isPlayer && (
-                 <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: '#a61c28', color: '#fff', border: '1px solid #ff4d4d' }} onClick={() => { if(confirm("Are you sure you want to resign? You will instantly lose the game.")) socket.emit('resign', { roomId }) }}>Resign</button>
-              )}
-              {room.status === 'finished' && isHost && (
-                 <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: 'var(--accent-color)', color: '#1a0808' }} onClick={() => socket.emit('return_to_lobby', { roomId })}>Return to Lobby</button>
-              )}
-              <Link to="/lobby" className="btn-primary btn-outline" onClick={() => socket.emit('leave_room', { roomId })} style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
+               {room.status === 'finished' && isHost && (
+                  <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: 'var(--accent-color)', color: '#1a0808' }} onClick={() => socket.emit('return_to_lobby', { roomId })}>Return to Lobby</button>
+               )}
+               {isHost && room.status === 'waiting' && (
+                 <>
+                    <button className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }} onClick={() => setShowChangeHost(true)}>Change Host</button>
+                    <button className="btn-primary btn-outline" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }} onClick={() => setShowGameOptions(true)}>Game Options</button>
+                 </>
+               )}
+               {room.status === 'playing' && isPlayer && (
+                  <button className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none', background: '#a61c28', color: '#fff', border: '1px solid #ff4d4d' }} onClick={() => { if(confirm("Are you sure you want to resign? You will instantly lose the game.")) socket.emit('resign', { roomId }) }}>Resign</button>
+               )}
+               <Link to="/lobby" className="btn-primary btn-outline" onClick={() => socket.emit('leave_room', { roomId })} style={{ padding: '0.5rem 1rem', fontSize: '1rem', flex: 'none' }}>Leave Room</Link>
             </div>
           </div>
           
@@ -613,7 +624,7 @@ function Room() {
                      {isPlayer.ready ? 'Ready!' : 'Click to Ready'}
                   </button>
                )}
-               {room.status === 'waiting' && !isHost && isPlayer && (
+               {room.status === 'waiting' && isPlayer && (
                   <button className="btn-primary btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }} onClick={() => socket.emit('switch_role', { roomId, role: 'spectator' })}>Switch to Spectator</button>
                )}
                {room.status === 'waiting' && !isPlayer && room.players.length < 2 && (
@@ -641,8 +652,8 @@ function Room() {
                   <h3 style={{ color: 'var(--accent-color)', marginBottom: '1rem' }}>Spectators</h3>
                   <ul style={{ listStyle: 'none', padding: 0 }}>
                     {room.spectators.map(s => (
-                      <li key={s.id} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '0.5rem', borderRadius: '8px' }}>
-                        {s.name}
+                      <li key={s.id} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', marginBottom: '0.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{s.name} {s.id === room.host ? '👑 (Host)' : ''}</span>
                       </li>
                     ))}
                     {room.spectators.length === 0 && <span style={{ color: 'var(--text-secondary)' }}>No spectators</span>}
@@ -726,9 +737,48 @@ function Room() {
           <button type="submit" className="btn-primary" style={{ padding: '0.8rem', borderRadius: '8px' }}>Send</button>
         </form>
       </div>
+
+      {showChangeHost && (
+        <div style={modalOverlayStyle}>
+           <div className="glass-panel" style={{ maxWidth: '400px', padding: '2rem' }}>
+              <h3 style={{ color: 'var(--accent-color)', marginBottom: '1.5rem' }}>Transfer Host Privileges</h3>
+              {allParticipants.length === 0 ? (
+                 <p style={{ marginBottom: '2rem' }}>No other participants to transfer to.</p>
+              ) : (
+                <div style={{ marginBottom: '2rem' }}>
+                   <label style={labelStyle}>New Host:</label>
+                   <select style={inputStyle} value={newHostId} onChange={e => setNewHostId(e.target.value)}>
+                      <option value="">Select someone...</option>
+                      {allParticipants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                   </select>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                 <button className="btn-primary" style={{ flex: 1 }} disabled={!newHostId} onClick={() => { socket.emit('change_host', { roomId, newHostId }); setShowChangeHost(false); }}>Make Host</button>
+                 <button className="btn-primary btn-outline" style={{ flex: 1 }} onClick={() => setShowChangeHost(false)}>Back</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {showGameOptions && (
+        <div style={modalOverlayStyle}>
+           <div className="glass-panel" style={{ maxWidth: '500px', padding: '2rem' }}>
+              <h3 style={{ color: 'var(--accent-color)', marginBottom: '1.5rem' }}>Game Options</h3>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontStyle: 'italic' }}>No game settings available for currently selected mode.</p>
+              <button className="btn-primary btn-outline" style={{ width: '100%' }} onClick={() => setShowGameOptions(false)}>Back</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const modalOverlayStyle = {
+  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+  background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
+  zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center'
+};
 
 const inputStyle = {
   width: '100%', padding: '1rem', background: 'rgba(255,255,255,0.1)',
