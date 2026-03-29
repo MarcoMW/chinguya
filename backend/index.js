@@ -151,10 +151,13 @@ io.on('connection', (socket) => {
     // Abstract Factory execution
     const BlackAndWhite = require('./games/BlackAndWhite');
     const BlackHole = require('./games/BlackHole');
+    const ArmsLength = require('./games/ArmsLength');
     if (room.gameType === 'black_and_white') {
       room.gameInstance = new BlackAndWhite(room, io, options);
     } else if (room.gameType === 'black_hole') {
       room.gameInstance = new BlackHole(room, io, options);
+    } else if (room.gameType === 'arms_length') {
+      room.gameInstance = new ArmsLength(room, io, options);
     } else {
       room.gameInstance = new Game(room, io, options);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { socket } from './socket';
+import ArmsLengthWrapper from './games/ArmsLengthWrapper';
 import './index.css';
 import ReactMarkdown from 'react-markdown';
 
@@ -560,9 +561,10 @@ function Room() {
                  <select style={{...inputStyle, width: 'auto', display: 'inline-block', marginLeft: '1rem', padding: '0.5rem', fontSize: '1.2rem', verticalAlign: 'middle', background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-color)'}} value={room.gameType} onChange={e => socket.emit('change_game_type', { roomId, type: e.target.value })}>
                    <option value="black_and_white">Black and White</option>
                    <option value="black_hole">Black Hole</option>
+                   <option value="arms_length">Arm's Length</option>
                  </select>
               ) : (
-                 <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle', marginLeft: '10px'}}>({room.gameType === 'black_hole' ? 'Black Hole' : 'Black and White'})</span>
+                 <span style={{fontSize: '1.2rem', color: 'var(--accent-color)', verticalAlign: 'middle', marginLeft: '10px'}}>({room.gameType === 'black_hole' ? 'Black Hole' : room.gameType === 'arms_length' ? "Arm's Length" : 'Black and White'})</span>
               )}
             </h2>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -661,6 +663,8 @@ function Room() {
               {gameState ? (
                 room.gameType === 'black_hole' 
                   ? <BlackHoleWrapper room={room} gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
+                  : room.gameType === 'arms_length'
+                  ? <ArmsLengthWrapper room={room} gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
                   : <BlackAndWhiteWrapper room={room} gameState={gameState} emitMove={emitMove} isPlayer={!!isPlayer} timers={timers} />
               ) : (
                 <div style={{ padding: '2rem', textAlign: 'center' }}>Syncing game state...</div>
