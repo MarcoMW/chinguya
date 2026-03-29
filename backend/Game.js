@@ -61,7 +61,7 @@ class Game {
     this.status = 'ended';
     this.room.status = 'finished';
     
-    this.io.to(this.room.id).emit('game_ended', { winnerId, reason, finalState: this.state });
+    this.io.to(this.room.id).emit('game_ended', { winnerId, reason, finalState: { ...this.state, p1: this.room.players[0].id, p2: this.room.players[1].id } });
     
     let winnerName = 'Someone';
     const player = this.room.players.find(p => p.id === winnerId);
