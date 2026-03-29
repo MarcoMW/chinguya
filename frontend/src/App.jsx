@@ -25,29 +25,7 @@ const TimerDisplay = ({ timeObj, isActive }) => {
    );
 };
 
-const SetupOverlay = ({ gameState, emitMove, isPlayer, p1Id, p2Id, roomPlayers }) => {
-   const amIP1 = isPlayer && socket.id === p1Id;
-   
-   if (gameState.phase !== 'setup') return null;
-   
-   const p1Name = roomPlayers.find(p => p.id === p1Id)?.name || 'P1';
-   const p2Name = roomPlayers.find(p => p.id === p2Id)?.name || 'P2';
-   
-   return (
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
-         <h2 style={{ color: '#fff', marginBottom: '2rem', fontSize: '2rem' }}>Who should play first?</h2>
-         {amIP1 ? (
-            <div style={{ display: 'flex', gap: '1rem' }}>
-               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p1Id })}>{p1Name}</button>
-               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: p2Id })}>{p2Name}</button>
-               <button className="btn-primary" onClick={() => emitMove({ action: 'choose_first_player', value: 'random' })}>Random</button>
-            </div>
-         ) : (
-            <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>Waiting for {p1Name} to configure the match...</div>
-         )}
-      </div>
-   );
-};
+
 
 // ---- GAME ENGINE WRAPPERS ----
 function BlackAndWhiteWrapper({ room, gameState, emitMove, isPlayer, timers }) {
@@ -94,7 +72,6 @@ function BlackAndWhiteWrapper({ room, gameState, emitMove, isPlayer, timers }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '500px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
-      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={gameState.p1} p2Id={gameState.p2} roomPlayers={room.players} />
       
       {/* Top: Opponent */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -268,7 +245,6 @@ function BlackHoleWrapper({ room, gameState, emitMove, isPlayer, timers }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', padding: '1rem', borderRadius: '16px', position: 'relative', border: '2px solid rgba(212, 175, 55, 0.1)' }}>
-      <SetupOverlay gameState={gameState} emitMove={emitMove} isPlayer={isPlayer} p1Id={p1Id} p2Id={p2Id} roomPlayers={room.players} />
       
       {/* Top: Opponent */}
       <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -467,6 +443,7 @@ function Room() {
   const [gameState, setGameState] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [timers, setTimers] = useState(null);
+  const [gameOptions, setGameOptions] = useState({ firstPlayer: 'random' });
   
   // Chat state
   const [chatMessages, setChatMessages] = useState([]);
@@ -563,7 +540,7 @@ function Room() {
   const isPlayer = room.players.find(p => p.id === socket.id);
   
   const handleStartGame = () => {
-    socket.emit('start_game', roomId, (res) => {
+    socket.emit('start_game', { roomId, options: gameOptions }, (res) => {
       if(!res.success) alert(res.message);
     });
   };
@@ -765,8 +742,35 @@ function Room() {
         <div style={modalOverlayStyle}>
            <div className="glass-panel" style={{ maxWidth: '500px', padding: '2rem' }}>
               <h3 style={{ color: 'var(--accent-color)', marginBottom: '1.5rem' }}>Game Options</h3>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontStyle: 'italic' }}>No game settings available for currently selected mode.</p>
-              <button className="btn-primary btn-outline" style={{ width: '100%' }} onClick={() => setShowGameOptions(false)}>Back</button>
+              <div style={{ marginBottom: '2rem' }}>
+                <label style={labelStyle}>First Player:</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button 
+                    className={`btn-primary ${gameOptions.firstPlayer === room.players[0]?.id ? '' : 'btn-outline'}`}
+                    disabled={!room.players[0]}
+                    onClick={() => setGameOptions({...gameOptions, firstPlayer: room.players[0]?.id})}
+                    style={{ flex: 1, padding: '0.5rem', opacity: room.players[0] ? 1 : 0.5 }}
+                  >
+                    {room.players[0]?.name || 'Player 1'}
+                  </button>
+                  <button 
+                    className={`btn-primary ${gameOptions.firstPlayer === room.players[1]?.id ? '' : 'btn-outline'}`}
+                    disabled={!room.players[1]}
+                    onClick={() => setGameOptions({...gameOptions, firstPlayer: room.players[1]?.id})}
+                    style={{ flex: 1, padding: '0.5rem', opacity: room.players[1] ? 1 : 0.5 }}
+                  >
+                    {room.players[1]?.name || 'Player 2'}
+                  </button>
+                  <button 
+                    className={`btn-primary ${gameOptions.firstPlayer === 'random' ? '' : 'btn-outline'}`}
+                    onClick={() => setGameOptions({...gameOptions, firstPlayer: 'random'})}
+                    style={{ flex: 1, padding: '0.5rem' }}
+                  >
+                    Random
+                  </button>
+                </div>
+              </div>
+              <button className="btn-primary btn-outline" style={{ width: '100%' }} onClick={() => setShowGameOptions(false)}>Done</button>
            </div>
         </div>
       )}

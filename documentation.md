@@ -52,3 +52,8 @@ The game wrappers implement defensive checks (null checks, optional chaining) to
 - `room_updated`: Full room metadata update.
 - `game_state_update`: Filtered/masked game state for the current player.
 - `chat_message`: General or system messages.
+
+## Deployment & Testing
+The `master` branch is hosted on [https://chinguya.up.railway.app/](https://chinguya.up.railway.app/).
+The `dev` branch is hosted on [https://chinguya-dev.up.railway.app/](https://chinguya-dev.up.railway.app/).
+For testing purposes, changes can be committed to the `dev` branch for live manual testing once the site is updated.

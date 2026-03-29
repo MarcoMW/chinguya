@@ -1,7 +1,8 @@
 class Game {
-  constructor(room, io) {
+  constructor(room, io, options = {}) {
     this.room = room;
     this.io = io;
+    this.options = options;
     this.state = {};
     this.status = 'playing'; // 'playing' | 'ended'
 

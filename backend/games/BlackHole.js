@@ -1,11 +1,14 @@
 const Game = require('../Game');
 
 class BlackHole extends Game {
-  constructor(room, io) {
-    super(room, io);
+  constructor(room, io, options = {}) {
+    super(room, io, options);
     this.p1 = room.players[0].id;
     this.p2 = room.players[1].id;
     
+    let starter = options.firstPlayer || 'random';
+    if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
+
     this.state = {
       players: {
         [this.p1]: { color: 'red', unplayed: [1,2,3,4,5,6,7,8,9,10] },
@@ -13,27 +16,14 @@ class BlackHole extends Game {
       },
       grid: Array(6).fill(null).map((_, r) => Array(6 - r).fill(null)),
       turnCount: 0,
-      turn: this.p1,
-      phase: 'setup',
+      turn: starter,
+      phase: 'playing',
       blackHoleResolving: false,
       resultText: null
     };
   }
 
   handleMove(playerId, moveData) {
-    if (this.state.phase === 'setup') {
-      if (playerId !== this.p1) throw new Error("Only P1 can choose the starting player");
-      if (moveData.action === 'choose_first_player') {
-         let starter = moveData.value;
-         if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
-         
-         this.state.turn = starter;
-         this.state.phase = 'playing';
-         this.broadcastState();
-         return;
-      }
-    }
-
     if (this.state.phase !== 'playing') return;
     if (this.state.turn !== playerId) throw new Error("Not your turn");
     if (moveData.action === 'place_piece') {

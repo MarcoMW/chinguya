@@ -1,21 +1,24 @@
 const Game = require('../Game');
 
 class BlackAndWhite extends Game {
-  constructor(room, io) {
-    super(room, io);
+  constructor(room, io, options = {}) {
+    super(room, io, options);
     this.p1 = room.players[0].id;
     this.p2 = room.players[1].id;
     
+    let starter = options.firstPlayer || 'random';
+    if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
+
     this.state = {
       players: {
         [this.p1]: { score: 0, tiles: this.shuffle([0,1,2,3,4,5,6,7,8]), playedThisRound: null, winOrder: -1 },
         [this.p2]: { score: 0, tiles: this.shuffle([0,1,2,3,4,5,6,7,8]), playedThisRound: null, winOrder: -1 }
       },
       round: 1,
-      turn: this.p1,
-      firstPlayerLastRound: null,
+      turn: starter,
+      firstPlayerLastRound: starter,
       roundWinner: null,
-      phase: 'setup', // 'setup' | 'playing' | 'resolving'
+      phase: 'playing', // 'setup' | 'playing' | 'resolving'
       history: []
     };
   }
@@ -60,20 +63,6 @@ class BlackAndWhite extends Game {
   }
 
   handleMove(playerId, moveData) {
-    if (this.state.phase === 'setup') {
-      if (playerId !== this.p1) throw new Error("Only P1 can choose the starting player");
-      if (moveData.action === 'choose_first_player') {
-         let starter = moveData.value;
-         if (starter === 'random') starter = Math.random() < 0.5 ? this.p1 : this.p2;
-         
-         this.state.turn = starter;
-         this.state.firstPlayerLastRound = starter;
-         this.state.phase = 'playing';
-         this.broadcastState();
-         return;
-      }
-    }
-
     if (this.state.phase !== 'playing') return;
     if (this.state.turn !== playerId) throw new Error("Not your turn");
     

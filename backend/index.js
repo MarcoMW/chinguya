@@ -133,7 +133,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('start_game', (roomId, callback) => {
+  socket.on('start_game', (data, callback) => {
+    let roomId = data;
+    let options = {};
+    if (typeof data === 'object') {
+       roomId = data.roomId;
+       options = data.options || {};
+    }
     const room = rooms[roomId];
     if (!room) return;
     if (room.host !== socket.id) return callback({ success: false, message: 'Only host can start the game' });
@@ -146,11 +152,11 @@ io.on('connection', (socket) => {
     const BlackAndWhite = require('./games/BlackAndWhite');
     const BlackHole = require('./games/BlackHole');
     if (room.gameType === 'black_and_white') {
-      room.gameInstance = new BlackAndWhite(room, io);
+      room.gameInstance = new BlackAndWhite(room, io, options);
     } else if (room.gameType === 'black_hole') {
-      room.gameInstance = new BlackHole(room, io);
+      room.gameInstance = new BlackHole(room, io, options);
     } else {
-      room.gameInstance = new Game(room, io);
+      room.gameInstance = new Game(room, io, options);
     }
     
     sendSystemMessage(roomId, `The game is starting!`, io);
