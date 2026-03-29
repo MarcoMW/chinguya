@@ -21,6 +21,8 @@ class ArmsLength extends Game {
     }
 
     this.state = {
+      p1: this.p1,
+      p2: this.p2,
       phase: 'playing',
       turn: firstPlayer,
       board: board,
@@ -34,7 +36,7 @@ class ArmsLength extends Game {
 
   handleMove(socketId, moveData) {
     if (this.state.phase !== 'playing') return;
-    if (this.status !== 'active') return;
+    if (this.status !== 'playing') return;
     if (this.state.turn !== socketId) return;
 
     const { row, col } = moveData; // expected 1 to 8
