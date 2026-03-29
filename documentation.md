@@ -53,6 +53,15 @@ The game wrappers implement defensive checks (null checks, optional chaining) to
 - `game_state_update`: Filtered/masked game state for the current player.
 - `chat_message`: General or system messages.
 
+## Adding a New Game
+To implement a new game, follow this workflow:
+1. **Rulebook Creation**: Create a Markdown file in `frontend/public/rules/[game_name].md` detailing the rules, gameplay mechanics, winning conditions, and time controls.
+2. **Consultation**: Discuss the rules with an agent to clarify edge cases and mechanical resolution order.
+3. **Backend Logic**: Create a new class file in `backend/games/[GameName].js` that extends the base `Game` class. Implement the game mechanics. Provide the `handleMove(socketId, moveData)` framework to process standard moves, and optionally override `getMaskedState()` if the game features hidden UI elements.
+4. **Backend Registration**: In `backend/index.js`, import the new game class and register it inside the `start_game` socket event's Abstract Factory block (e.g., `if (room.gameType === '[game_name]')`).
+5. **Frontend UI Container**: Create a visually distinct React wrapper component in `frontend/src/games/[GameName]Wrapper.jsx` responsible for rendering `gameState` and exposing the `emitMove` handler prop attached to the DOM elements.
+6. **Frontend Routing**: In `frontend/src/App.jsx`, import the new wrapper component, instantiate a new dropdown option in the "Game Options" modal, and add the wrapper to the conditional rendering block that paints the game components.
+
 ## Deployment & Testing
 The `master` branch is hosted on [https://chinguya.up.railway.app/](https://chinguya.up.railway.app/).
 The `dev` branch is hosted on [https://chinguya-dev.up.railway.app/](https://chinguya-dev.up.railway.app/).
