@@ -100,7 +100,7 @@ io.on('connection', (socket) => {
     if (role !== 'player') socket.emit('chat_history', { type: 'spectator', messages: room.spectatorHistory });
     
     // If joining mid-game, explicitly send the game state to the joiner immediately
-    if (room.status === 'playing' && room.gameInstance) {
+    if ((room.status === 'playing' || room.status === 'finished') && room.gameInstance) {
        socket.emit('game_state_update', room.gameInstance.getMaskedState(role === 'player' ? socket.id : 'spectator'));
     }
 

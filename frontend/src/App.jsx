@@ -441,7 +441,6 @@ function Room() {
   const location = useLocation();
   const [room, setRoom] = useState(location.state?.initialRoom || null);
   const [gameState, setGameState] = useState(null);
-  const [gameStarted, setGameStarted] = useState(false);
   const [timers, setTimers] = useState(null);
   const [gameOptions, setGameOptions] = useState({ firstPlayer: 'random' });
   
@@ -486,11 +485,7 @@ function Room() {
 
     socket.on('room_updated', (updatedRoom) => {
       setRoom(updatedRoom);
-      if (updatedRoom.status === 'playing') setGameStarted(true);
-      else {
-        setGameStarted(false);
-        if (updatedRoom.status === 'waiting') setGameState(null); 
-      }
+      if (updatedRoom.status === 'waiting') setGameState(null); 
     });
 
     socket.on('room_disbanded', () => {
@@ -503,13 +498,9 @@ function Room() {
       else if (type === 'spectator') setSpecMessages(messages);
     });
 
-    socket.on('game_started', () => {
-      setGameStarted(true);
-    });
     socket.on('game_state_update', (state) => setGameState(state));
     socket.on('game_ended', ({ winnerId, reason, finalState }) => {
       setGameState(finalState);
-      setGameStarted(false);
       setTimers(null); // Clear timers when game ends
     });
 
@@ -520,7 +511,6 @@ function Room() {
     return () => {
       socket.off('room_updated');
       socket.off('room_disbanded');
-      socket.off('game_started');
       socket.off('game_state_update');
       socket.off('game_ended');
       socket.off('timer_sync');
@@ -610,7 +600,7 @@ function Room() {
             </div>
           </div>
 
-          {!gameStarted ? (
+          {room.status === 'waiting' ? (
             <>
               <div style={{ display: 'flex', gap: '2rem', textAlign: 'left', marginBottom: '2rem' }}>
                 <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '16px' }}>
