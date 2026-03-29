@@ -234,7 +234,7 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || room.status !== 'waiting' || room.host !== socket.id) return;
     room.gameType = type;
-    sendSystemMessage(roomId, `Host changed game to ${type === 'black_hole' ? 'Black Hole' : 'Black and White'}`, io);
+    sendSystemMessage(roomId, `Host changed game to ${type === 'black_hole' ? 'Black Hole' : type === 'arms_length' ? "Arm's Length" : 'Black and White'}`, io);
     io.to(roomId).emit('room_updated', sanitizeRoom(room));
     io.emit('rooms_list', getPublicRooms());
   });

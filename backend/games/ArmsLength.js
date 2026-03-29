@@ -29,7 +29,7 @@ class ArmsLength extends Game {
       lastMove: null
     };
 
-    super.startTimers();
+
   }
 
   handleMove(socketId, moveData) {

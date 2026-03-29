@@ -349,7 +349,7 @@ function Lobby() {
     });
   };
   
-  const getGameLabel = (type) => type === 'black_hole' ? 'Black Hole' : 'Black and White';
+  const getGameLabel = (type) => type === 'black_hole' ? 'Black Hole' : type === 'arms_length' ? "Arm's Length" : 'Black and White';
 
   return (
     <div className="app-container">
@@ -401,6 +401,7 @@ function Lobby() {
               <select style={inputStyle} value={newRoom.gameType} onChange={e => setNewRoom({...newRoom, gameType: e.target.value})}>
                 <option value="black_and_white">Black and White</option>
                 <option value="black_hole">Black Hole</option>
+                <option value="arms_length">Arm's Length</option>
               </select>
             </div>
             <div style={{ marginBottom: '1.5rem' }}><label style={labelStyle}>Password (optional):</label><input type="password" style={inputStyle} value={newRoom.password} onChange={e => setNewRoom({...newRoom, password: e.target.value})} placeholder="Leave blank for public" /></div>
