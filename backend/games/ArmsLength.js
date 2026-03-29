@@ -88,15 +88,14 @@ class ArmsLength extends Game {
 
     this.state.lastMove = { row, col };
     
-    // Check Win Conditions
     const checkWin = (board, piece) => {
       for (let r = 1; r <= 8; r++) {
         for (let c = 1; c <= 8; c++) {
           if (board[r][c] !== piece) continue;
-          if (c <= 5 && board[r][c+1] === piece && board[r][c+2] === piece && board[r][c+3] === piece) return true;
-          if (r <= 5 && board[r+1][c] === piece && board[r+2][c] === piece && board[r+3][c] === piece) return true;
-          if (r <= 5 && c <= 5 && board[r+1][c+1] === piece && board[r+2][c+2] === piece && board[r+3][c+3] === piece) return true;
-          if (r <= 5 && c >= 4 && board[r+1][c-1] === piece && board[r+2][c-2] === piece && board[r+3][c-3] === piece) return true;
+          if (c <= 5 && board[r][c+1] === piece && board[r][c+2] === piece && board[r][c+3] === piece) return [{r, c}, {r, c: c+3}];
+          if (r <= 5 && board[r+1][c] === piece && board[r+2][c] === piece && board[r+3][c] === piece) return [{r, c}, {r: r+3, c}];
+          if (r <= 5 && c <= 5 && board[r+1][c+1] === piece && board[r+2][c+2] === piece && board[r+3][c+3] === piece) return [{r, c}, {r: r+3, c: c+3}];
+          if (r <= 5 && c >= 4 && board[r+1][c-1] === piece && board[r+2][c-2] === piece && board[r+3][c-3] === piece) return [{r, c}, {r: r+3, c: c-3}];
         }
       }
       return false;
@@ -109,16 +108,20 @@ class ArmsLength extends Game {
     
     let winner = null;
     let reason = "Win condition met.";
+    let finalLine = null;
     
     if (p1Lines && p2Lines) {
         winner = socketId === this.p1 ? this.p2 : this.p1;
         reason = "Both formed 4-in-a-row. Moving player loses.";
+        finalLine = socketId === this.p1 ? p2Lines : p1Lines;
     } else if (p1Lines) {
         winner = this.p1;
         reason = "4-in-a-row formed.";
+        finalLine = p1Lines;
     } else if (p2Lines) {
         winner = this.p2;
         reason = "4-in-a-row formed.";
+        finalLine = p2Lines;
     } else if (p1Knockout && p2Knockout) {
         winner = socketId === this.p1 ? this.p2 : this.p1;
         reason = "Both reached 10 knockouts. Moving player loses.";
@@ -132,6 +135,9 @@ class ArmsLength extends Game {
 
     if (winner) {
         this.state.turn = null;
+        this.state.winner = winner;
+        this.state.winReason = reason;
+        if (finalLine) this.state.winningLine = finalLine;
         this.broadcastState();
         this.endGame(winner, reason);
         return;

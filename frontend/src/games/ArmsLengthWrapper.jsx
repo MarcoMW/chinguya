@@ -62,10 +62,15 @@ const ArmsLengthWrapper = ({ room, gameState, emitMove, isPlayer, timers }) => {
   
   const pushes = hoveredCell && isMyTurn ? getPreviewPushes(hoveredCell.r, hoveredCell.c) : [];
   
+  const getWinnerName = () => {
+     if (gameState.winner === 'draw') return "Nobody";
+     return room.players.find(p => p.id === gameState.winner)?.name || "Someone";
+  };
+  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '650px', background: 'radial-gradient(circle at center, #1b3a26 0%, #0a170f 100%)', position: 'relative' }}>
       {/* Top Banner for P2 (usually opponent) */}
-      <div style={{ display: 'flex', justifySelf: 'flex-start', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(0,0,0,0.6)', borderBottom: '2px solid var(--glass-border)' }}>
+      <div style={{ display: 'flex', justifySelf: 'flex-start', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: gameState.turn === gameState.p2 ? 'rgba(52, 152, 219, 0.2)' : 'rgba(0,0,0,0.6)', borderBottom: '2px solid var(--glass-border)', transition: 'background 0.3s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
           <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#3498db', boxShadow: '0 0 10px #3498db' }} />
           <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white' }}>{p2Name}</span>
@@ -91,8 +96,19 @@ const ArmsLengthWrapper = ({ room, gameState, emitMove, isPlayer, timers }) => {
           background: '#8b5a2b', 
           padding: '6px', 
           borderRadius: '8px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          position: 'relative'
         }}>
+          {gameState.winningLine && (
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
+              <line 
+                x1={31 + (gameState.winningLine[0].c - 1) * 52} 
+                y1={31 + (gameState.winningLine[0].r - 1) * 52} 
+                x2={31 + (gameState.winningLine[1].c - 1) * 52} 
+                y2={31 + (gameState.winningLine[1].r - 1) * 52} 
+                stroke="#f1c40f" strokeWidth="8" strokeLinecap="round" opacity="0.9" filter="drop-shadow(0px 0px 5px rgba(0,0,0,0.8))" />
+            </svg>
+          )}
           {Array.from({ length: 8 }).map((_, rIdx) => {
             const r = rIdx + 1;
             return Array.from({ length: 8 }).map((_, cIdx) => {
@@ -170,7 +186,7 @@ const ArmsLengthWrapper = ({ room, gameState, emitMove, isPlayer, timers }) => {
       </div>
       
       {/* Bottom Banner for P1 (usually you) */}
-      <div style={{ display: 'flex', justifySelf: 'flex-end', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(0,0,0,0.6)', borderTop: '2px solid var(--glass-border)' }}>
+      <div style={{ display: 'flex', justifySelf: 'flex-end', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: gameState.turn === gameState.p1 ? 'rgba(231, 76, 60, 0.2)' : 'rgba(0,0,0,0.6)', borderTop: '2px solid var(--glass-border)', transition: 'background 0.3s ease' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
           <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#e74c3c', boxShadow: '0 0 10px #e74c3c' }} />
           <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white' }}>{p1Name}</span>
@@ -185,6 +201,17 @@ const ArmsLengthWrapper = ({ room, gameState, emitMove, isPlayer, timers }) => {
           </div>
         </div>
       </div>
+
+      {gameState.winner && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+           <div style={{ background: 'rgba(20,20,20,0.95)', padding: '3rem', borderRadius: '16px', border: '2px solid var(--accent-color)', textAlign: 'center', boxShadow: '0 0 30px rgba(212,175,55,0.4)', animation: 'fadeIn 0.5s ease' }}>
+              <h2 style={{ fontSize: '2.5rem', color: 'var(--accent-color)', marginBottom: '1rem', textShadow: '0 0 10px rgba(212,175,55,0.5)' }}>
+                 {getWinnerName()} Wins!
+              </h2>
+              <p style={{ fontSize: '1.2rem', color: 'white' }}>{gameState.winReason}</p>
+           </div>
+        </div>
+      )}
 
     </div>
   );
