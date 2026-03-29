@@ -153,7 +153,7 @@ class ArmsLength extends Game {
 
     // Switch turn
     this.state.turn = socketId === this.p1 ? this.p2 : this.p1;
-    this.switchTurn();
+
     this.broadcastState();
   }
 }
